@@ -1,0 +1,39 @@
+name: SBOM
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: Node.js version
+        type: string
+        default: "24"
+      working-directory:
+        description: Directory containing package.json / pnpm-lock.yaml
+        type: string
+        default: "."
+
+jobs:
+  sbom:
+    name: Generate CycloneDX SBOM
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: helpers4/action/setup-pnpm@6fddd178620e7325d446a246c38a44f979569fc4 # main @ 2026-07-29
+        with:
+          node-version: ${{ inputs.node-version }}
+          working-directory: ${{ inputs.working-directory }}
+
+      - name: Generate SBOM (CycloneDX JSON)
+        run: pnpm dlx @cyclonedx/cyclonedx-npm --output-file bom.cdx.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: sbom-${{ github.ref_name }}-${{ github.sha }}
+          path: ${{ inputs.working-directory }}/bom.cdx.json
+          retention-days: 90

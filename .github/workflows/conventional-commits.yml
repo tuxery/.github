@@ -1,0 +1,19 @@
+name: Conventional Commits — commit messages check
+
+# Reusable template. Product repos can call this or embed the steps directly.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  check-commits:
+    name: Commit messages follow conventional commits + gitmoji
+    runs-on: ubuntu-latest
+    steps:
+      # The action does its own checkout (fetch-depth 0) by default; scopes
+      # are auto-read from each repo's own scopes.json.
+      - uses: helpers4/action/conventional-commits@6fddd178620e7325d446a246c38a44f979569fc4 # main @ 2026-07-29
+        with:
+          pr-comment: "none"

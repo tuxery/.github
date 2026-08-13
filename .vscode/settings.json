@@ -1,0 +1,12 @@
+{
+  "conventionalCommits.gitmoji": true,
+  "conventionalCommits.scopes": [
+    "governance",
+    "community",
+    "templates",
+    "workflows",
+    "conventional-commits",
+    "security",
+    "support"
+  ]
+}
