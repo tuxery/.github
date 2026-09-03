@@ -11,6 +11,27 @@ on:
         description: Directory containing package.json / pnpm-lock.yaml
         type: string
         default: "."
+    # Purely additive — a caller that only reads `needs.<job>.result` (the
+    # aggregate status of this whole reusable workflow call) keeps working
+    # unchanged. These exist so a caller that wants a per-check PR comment
+    # (see tuxery/app's ci.yml) can show typecheck/lint/test/build as their
+    # own rows instead of one bundled status.
+    outputs:
+      typecheck-result:
+        description: Result of the typecheck job (success/failure/etc.)
+        value: ${{ jobs.typecheck.result }}
+      lint-result:
+        description: Result of the lint job (success/failure/etc.)
+        value: ${{ jobs.lint.result }}
+      test-result:
+        description: Result of the test job (success/failure/etc.)
+        value: ${{ jobs.test.result }}
+      test-summary:
+        description: Unit test counts as "N passed, N failed" (vitest's Jest-compatible JSON reporter), or "no tests" for an empty suite
+        value: ${{ jobs.test.outputs.summary }}
+      build-result:
+        description: Result of the build job (success/failure/etc.)
+        value: ${{ jobs.build.result }}
 
 jobs:
   typecheck:
@@ -46,6 +67,8 @@ jobs:
   test:
     name: Unit Tests
     runs-on: ubuntu-latest
+    outputs:
+      summary: ${{ steps.summary.outputs.summary }}
     steps:
       - uses: actions/checkout@v7
 
@@ -56,7 +79,28 @@ jobs:
 
       - name: Run unit tests
         working-directory: ${{ inputs.working-directory }}
-        run: pnpm run test
+        # vitest's own default reporter is human-only — its JSON reporter
+        # writes a Jest-compatible report (numPassedTests/numFailedTests)
+        # that `test-summary` below turns into a plain count for the PR
+        # comment. Runs alongside the default reporter, doesn't change what
+        # gets printed in the Actions log.
+        run: pnpm run test -- --reporter=default --reporter=json --outputFile.json=vitest-report.json
+
+      - name: Summarize unit test counts
+        id: summary
+        if: always()
+        working-directory: ${{ inputs.working-directory }}
+        # No unit tests in a given repo is a valid, deliberate state (see
+        # tuxery/app's vite.config.ts's `passWithNoTests`) — the report file
+        # still exists in that case, just with zero counts, so this reads
+        # the same either way rather than special-casing "file missing".
+        run: |
+          if [[ -f vitest-report.json ]]; then
+            summary=$(jq -r '"\(.numPassedTests // 0) passed, \(.numFailedTests // 0) failed, \(.numPendingTests // 0) skipped"' vitest-report.json)
+          else
+            summary="no report"
+          fi
+          echo "summary=$summary" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build
